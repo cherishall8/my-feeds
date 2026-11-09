@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""把沒有 RSS 的網站列表頁，轉成 RSS 檔（輸出到 docs/ 資料夾）。
-
-目前的來源：
-  1. 臺北市社區心理衛生中心－最新消息
-  2. 國健署健康職場資訊網－最新消息與活動快訊
-
-新增網站：在 SOURCES 加一筆，並指定 parser。
-抓到 0 筆會讓程式失敗，GitHub 會寄信通知你（代表網站可能改版了）。
-"""
+"""把沒有 RSS 的網站列表頁，轉成 RSS 檔（輸出到 docs/ 資料夾）。"""
 import re
 import sys
 from datetime import datetime, timezone, timedelta
@@ -24,9 +16,7 @@ OUT_DIR = Path("docs")
 HEADERS = {"User-Agent": "Mozilla/5.0 (personal RSS builder; twice a week)"}
 
 
-# ---------- 日期工具 ----------
 def roc_to_datetime(text):
-    """'115-11-05' 或 '115.11.05' (民國) -> datetime；失敗回傳 None。"""
     m = re.search(r"(\d{2,3})[-./](\d{1,2})[-./](\d{1,2})", text)
     if not m:
         return None
@@ -38,7 +28,6 @@ def roc_to_datetime(text):
 
 
 def ad_to_datetime(text):
-    """'2026/10/30' (西元) -> datetime；失敗回傳 None。"""
     m = re.search(r"(20\d{2})[-/.](\d{1,2})[-/.](\d{1,2})", text or "")
     if not m:
         return None
@@ -49,9 +38,7 @@ def ad_to_datetime(text):
         return None
 
 
-# ---------- 各網站的解析器 ----------
 def parse_taipei_table(html, base_url):
-    """臺北心衛中心：「編號 | 主題 | 上版日期」表格。"""
     soup = BeautifulSoup(html, "html.parser")
     items = []
     for tr in soup.select("table tr"):
@@ -73,8 +60,6 @@ def parse_taipei_table(html, base_url):
 
 
 def parse_hpa_workplace(html, base_url):
-    """國健署健康職場資訊網首頁：連結含 news_in.aspx?Id=數字，
-    日期寫在連結前面（例如 2026/10/30）。用連結編號去重。"""
     soup = BeautifulSoup(html, "html.parser")
     items, seen = [], set()
     for a in soup.find_all("a", href=True):
@@ -82,10 +67,12 @@ def parse_hpa_workplace(html, base_url):
         if not m or m.group(1) in seen:
             continue
         title = (a.get("title") or a.get_text(strip=True) or "").strip()
-        title = re.sub(r"^連結\s*", "", title)  # 網站的 title 屬性前面有「連結」二字
+        title = re.sub(r"^連結\s*", "", title)
         if not title:
             continue
-        date_text = a.find_previous(string=re.compile(r"20\d{2}[/-]\d{1,2}[/-]\d{1,2}"))
+        date_text = a.find_previous(
+            string=re.compile(r"20\d{2}[/-]\d{1,2}[/-]\d{1,2}")
+        )
         seen.add(m.group(1))
         items.append(
             {
@@ -97,7 +84,6 @@ def parse_hpa_workplace(html, base_url):
     return items
 
 
-# ---------- 來源清單 ----------
 SOURCES = [
     {
         "slug": "taipei-mental-health-news",
@@ -117,7 +103,6 @@ SOURCES = [
 ]
 
 
-# ---------- 輸出 RSS ----------
 def build_rss(source, items):
     now = format_datetime(datetime.now(TW))
     parts = [
@@ -150,7 +135,7 @@ def main():
             resp.raise_for_status()
             resp.encoding = resp.apparent_encoding or "utf-8"
             items = src["parser"](resp.text, src["url"])
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[錯誤] {src['slug']}: {e}", file=sys.stderr)
             failed = True
             continue
